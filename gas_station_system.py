@@ -5,7 +5,7 @@ import json
 import time
 
 from datetime import datetime
-from base import BaseSystem, Credential, Transaction, Station, InvalidCredentialsError, InvalidGetTransactionsError
+from base import BaseSystem, Credential, Transaction, Station, Point, InvalidCredentialsError, InvalidGetTransactionsError
 
 
 class GasStationSystem(BaseSystem):
@@ -83,12 +83,14 @@ class GasStationSystem(BaseSystem):
     def get_transactions(self, from_date: datetime, to_date: datetime) -> list[Transaction]:
         transactions = []
         try:
+            stations = self.get_stations()
+            time.sleep(1)
             if self.credential.contracts:
                 contracts_list = [contract.strip() for contract in self.credential.contracts.rsplit(',')]
                 for contract in contracts_list:
-                    transactions = self.transactions_requests(transactions, from_date, to_date, contract)
+                    transactions = self.transactions_requests(transactions, stations, from_date, to_date, contract)
             else:
-                transactions = self.transactions_requests(transactions, from_date, to_date)
+                transactions = self.transactions_requests(transactions, stations, from_date, to_date)
         except requests.exceptions.RequestException as e:
             print(f"(get_transactions) Request exception: {e}")
             raise InvalidGetTransactionsError(e)
@@ -98,7 +100,7 @@ class GasStationSystem(BaseSystem):
         
         return transactions
         
-    def transactions_requests(self, transactions: list, from_date: datetime, to_date: datetime, contract = None):
+    def transactions_requests(self, transactions: list, stations: dict, from_date: datetime, to_date: datetime, contract = None):
         pages = 1
         page = pages
         int_contract = int(contract)
@@ -149,7 +151,7 @@ class GasStationSystem(BaseSystem):
                         volume = 0.0    
                     transactions.append(Transaction(
                         credential = self.credential,
-                        station = Station(code = transaction['АЗС']),
+                        station = stations[transaction['АЗС']],
                         card = transaction['Карта'],
                         code = transaction['Номер'],
                         date = datetime.strptime(transaction['Дата'], '%Y-%m-%d %H:%M:%S'),
@@ -186,3 +188,42 @@ class GasStationSystem(BaseSystem):
             time.sleep(1)
         
         return transactions
+    
+    def get_stations(self) -> dict:
+        time.sleep(1)
+        stations = {}
+        try:
+            headers = {
+                'cookie': self.cookie,
+            }
+            stations_url = os.getenv('STATIONS_URL')
+            response = requests.get(stations_url, headers = headers)
+            response.raise_for_status()
+            data = json.loads(response.text)
+            for station in data:
+                code = station['id']
+                name = station['name']
+                brand = None
+                point = None
+                address = None
+                if station.get('lat') and station.get('lng'):
+                    point = Point(lat = station["lat"], lng = station["lng"])
+                if station.get('address'):
+                    address = station['address']
+                stations.update({
+                    name: Station(
+                        code = code,
+                        name = name,
+                        brand = brand,
+                        point = point,
+                        address = address,
+                    ),
+                })  
+        except requests.exceptions.RequestException as e:
+            print(f"(get_stations) Request exception: {e}")
+            raise InvalidGetTransactionsError(e)
+        except Exception as e:
+            print(f"(get_stations) Parsing exception: {e}")
+            raise InvalidGetTransactionsError(e)
+        
+        return stations
