@@ -157,7 +157,7 @@ class GasStationSystem(BaseSystem):
                     ))
 
             else:
-                InvalidGetTransactionsError("There are no contracts")
+                InvalidGetTransactionsError("There are no transactions")
 
             if page == 1:
                 pagination_links = soup.find_all('a', class_='page-link')
