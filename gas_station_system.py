@@ -137,6 +137,8 @@ class GasStationSystem(BaseSystem):
                             row_data[headers[i]] = cell.text.strip()
                         transactions_list.append(row_data)
                 for transaction in transactions_list:
+                    if str(transaction['Товар']).strip() == 'Пополнение баланса':
+                        continue
                     try:
                         amount = float(transaction['Сумма'])
                     except Exception as e:
